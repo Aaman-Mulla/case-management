@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}Create User{% endblock %}
+
+{% block content %}
+<div class="lt-breadcrumb">
+    <a href="{{ url_for('admin.dashboard') }}">Dashboard</a>
+    <span class="separator">/</span>
+    <a href="{{ url_for('admin.manage_users') }}">Users</a>
+    <span class="separator">/</span>
+    <span>Create User</span>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-lg-6">
+        <div class="lt-card">
+            <div class="lt-card-header">
+                <h5><i class="bi bi-person-plus me-2"></i>Create User</h5>
+            </div>
+            <div class="lt-card-body">
+                <form method="POST" novalidate>
+                    {{ form.hidden_tag() }}
+
+                    <div class="mb-3">
+                        <label for="username" class="form-label">Username <span class="text-danger">*</span></label>
+                        {{ form.username(class="form-control") }}
+                        {% for e in form.username.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="email" class="form-label">Email</label>
+                        {{ form.email(class="form-control") }}
+                        {% for e in form.email.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="full_name" class="form-label">Full Name</label>
+                        {{ form.full_name(class="form-control") }}
+                        {% for e in form.full_name.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="role" class="form-label">Role <span class="text-danger">*</span></label>
+                        {{ form.role(class="form-control form-select") }}
+                        {% for e in form.role.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="password" class="form-label">Password <span class="text-danger">*</span></label>
+                        <div class="position-relative">
+                            {{ form.password(class="form-control", type="password") }}
+                            <button type="button" class="password-toggle" tabindex="-1"><i class="bi bi-eye"></i></button>
+                        </div>
+                        {% for e in form.password.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="confirm_password" class="form-label">Confirm Password <span class="text-danger">*</span></label>
+                        <div class="position-relative">
+                            {{ form.confirm_password(class="form-control", type="password") }}
+                            <button type="button" class="password-toggle" tabindex="-1"><i class="bi bi-eye"></i></button>
+                        </div>
+                        {% for e in form.confirm_password.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-lt-accent">
+                            <i class="bi bi-check-lg me-1"></i> Create User
+                        </button>
+                        <a href="{{ url_for('admin.manage_users') }}" class="btn btn-outline-secondary">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

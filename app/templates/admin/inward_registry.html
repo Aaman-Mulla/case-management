@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+{% block title %}Inward Registry{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="mb-0 fw-bold">Inward Letter Registry</h4>
+    <a href="{{ url_for('admin.export_inward_registry') }}?start_date={{ request.args.get('start_date','') }}&end_date={{ request.args.get('end_date','') }}&range={{ request.args.get('range','') }}&section={{ request.args.get('section','') }}&status={{ request.args.get('status','') }}" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-download me-1"></i> Export Excel
+    </a>
+</div>
+
+<!-- Date Filters -->
+<div class="lt-card mb-4">
+    <div class="lt-card-body">
+        <form method="GET" class="row g-2 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label">Start Date</label>
+                <input type="date" name="start_date" class="form-control form-control-sm" value="{{ request.args.get('start_date', '') }}">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">End Date</label>
+                <input type="date" name="end_date" class="form-control form-control-sm" value="{{ request.args.get('end_date', '') }}">
+            </div>
+            <div class="col-md-3">
+                <button type="submit" class="btn btn-lt-accent btn-sm">Filter</button>
+                <a href="{{ url_for('admin.inward_registry') }}" class="btn btn-outline-secondary btn-sm ms-1">Reset</a>
+            </div>
+            <div class="col-md-3 text-end">
+                <div class="btn-group btn-group-sm">
+                    <a href="{{ url_for('admin.inward_registry') }}?range=today" class="btn btn-outline-secondary btn-quick-range" data-range="today">Today</a>
+                    <a href="{{ url_for('admin.inward_registry') }}?range=week" class="btn btn-outline-secondary btn-quick-range" data-range="week">This Week</a>
+                    <a href="{{ url_for('admin.inward_registry') }}?range=month" class="btn btn-outline-secondary btn-quick-range" data-range="month">This Month</a>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Section Summary -->
+{% if section_counts %}
+<div class="lt-card mb-4">
+    <div class="lt-card-header">
+        <h5>Section-wise Summary</h5>
+    </div>
+    <div class="lt-card-body">
+        <div class="d-flex flex-wrap gap-2">
+            {% for sec, cnt in section_counts.items() %}
+            <span class="lt-badge lt-badge-assigned">{{ sec }}: {{ cnt }}</span>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Registry Table -->
+<div class="lt-card">
+    <div class="lt-card-body p-0">
+        <div class="lt-bulk-shell">
+            <div class="d-flex gap-2 align-items-center" id="bulkBar">
+                <span class="text-muted me-2"><strong id="selectedCount">0</strong> selected</span>
+                <select id="bulkAction" class="form-select form-select-sm" style="width: auto;">
+                    <option value="">Bulk Actions…</option>
+                    <option value="delete">Delete Selected</option>
+                    <option value="assign">Assign Selected</option>
+                    <option value="unassign">Unassign Selected</option>
+                </select>
+                <button class="btn btn-sm btn-outline-secondary" onclick="executeRegistryBulk()">Apply</button>
+            </div>
+        </div>
+        <div class="lt-dt-shell table-responsive">
+            <table class="table table-hover lt-table mb-0" id="registryTable">
+                <thead>
+                    <tr>
+                        <th><input type="checkbox" id="selectAll"></th>
+                        <th>#</th>
+                        <th>Date Received</th>
+                        <th>From</th>
+                        <th>Subject</th>
+                        <th>Section</th>
+                        <th>Priority</th>
+                        <th>Status</th>
+                        <th>Assigned To</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for letter in letters %}
+                    <tr>
+                        <td><input type="checkbox" class="row-check" value="{{ letter.id }}"></td>
+                        <td>{{ loop.index }}</td>
+                        <td>{{ letter.import_date.strftime('%d %b %Y') if letter.import_date else '—' }}</td>
+                        <td class="text-truncate" style="max-width: 200px;">{{ letter.from_address }}</td>
+                        <td>
+                            <a href="{{ url_for('main.letter_detail', id=letter.id) }}">{{ letter.subject }}</a>
+                        </td>
+                        <td>{{ letter.section or (letter.case.section if letter.case else '—') }}</td>
+                        <td>
+                            {% if letter.priority %}
+                            <span class="lt-badge lt-badge-{{ letter.priority|lower }}">{{ letter.priority }}</span>
+                            {% endif %}
+                        </td>
+                        <td><span class="lt-badge lt-badge-{{ letter.status|lower|replace(' ','') }}">{{ letter.status }}</span></td>
+                        <td>{{ (letter.assignee.full_name or letter.assignee.username) if letter.assignee else ('User #' ~ letter.assignee_id if letter.assignee_id else '—') }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    $('#registryTable').DataTable({ order: [[2, 'desc']], columnDefs: [{ orderable: false, targets: [0] }] });
+});
+
+$('#selectAll').on('change', function() {
+    $('.row-check').prop('checked', this.checked);
+    updateBulkBar();
+});
+$(document).on('change', '.row-check', updateBulkBar);
+
+function updateBulkBar() {
+    var count = $('.row-check:checked').length;
+    $('#selectedCount').text(count);
+}
+
+function executeRegistryBulk() {
+    var action = $('#bulkAction').val();
+    if (!action) return;
+    var ids = [];
+    $('.row-check:checked').each(function() { ids.push($(this).val()); });
+    if (ids.length === 0) { ltToast('No letters selected', 'warning'); return; }
+
+    if (action === 'delete') {
+        ltConfirm('Delete ' + ids.length + ' selected letter(s)?', function() { submitRegistryBulk(action, ids); });
+    } else {
+        submitRegistryBulk(action, ids);
+    }
+}
+
+function submitRegistryBulk(action, ids) {
+    var form = $('<form method="POST" action="{{ url_for("admin.bulk_action") }}">');
+    form.append('<input type="hidden" name="csrf_token" value="' + $('meta[name=csrf-token]').attr('content') + '">');
+    form.append('<input type="hidden" name="action" value="' + action + '">');
+    ids.forEach(function(id) {
+        form.append('<input type="hidden" name="letter_ids" value="' + id + '">');
+    });
+    form.append('<input type="hidden" name="redirect_to" value="inward_registry">');
+    $('body').append(form);
+    form.submit();
+}
+</script>
+{% endblock %}

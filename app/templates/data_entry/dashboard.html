@@ -1,0 +1,257 @@
+{% extends "base.html" %}
+{% block title %}Data Entry Dashboard{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="mb-0 fw-bold">Data Entry Dashboard</h4>
+    <div class="d-flex gap-2">
+        <a href="{{ url_for('data_entry.add_inward_letter') }}" class="btn btn-lt-accent btn-sm" data-shortcut="new">
+            <i class="bi bi-plus-lg me-1"></i> New Inward
+        </a>
+        <a href="{{ url_for('data_entry.add_outward_letter') }}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-send me-1"></i> New Outward
+        </a>
+        <a href="{{ url_for('data_entry.upload') }}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-upload me-1"></i> Import
+        </a>
+    </div>
+</div>
+
+<!-- Stats -->
+<div class="lt-stats-grid">
+    <a href="{{ url_for('data_entry.dashboard') }}" class="lt-stat-card" style="text-decoration:none; color:inherit;">
+        <div class="lt-stat-icon primary"><i class="bi bi-envelope-paper"></i></div>
+        <div class="lt-stat-info">
+            <h3 data-count-up="{{ stats.total }}">{{ stats.total }}</h3>
+            <small>Total Letters</small>
+        </div>
+    </a>
+    <a href="{{ url_for('data_entry.dashboard', status='Unassigned') }}" class="lt-stat-card" style="text-decoration:none; color:inherit;">
+        <div class="lt-stat-icon danger"><i class="bi bi-exclamation-triangle"></i></div>
+        <div class="lt-stat-info">
+            <h3 data-count-up="{{ stats.unassigned }}">{{ stats.unassigned }}</h3>
+            <small>Unassigned</small>
+        </div>
+    </a>
+    <a href="{{ url_for('data_entry.dashboard', status='In Progress') }}" class="lt-stat-card" style="text-decoration:none; color:inherit;">
+        <div class="lt-stat-icon accent"><i class="bi bi-person-check"></i></div>
+        <div class="lt-stat-info">
+            <h3 data-count-up="{{ stats.in_progress }}">{{ stats.in_progress }}</h3>
+            <small>In Progress</small>
+        </div>
+    </a>
+    <a href="{{ url_for('data_entry.dashboard', status='Resolved') }}" class="lt-stat-card" style="text-decoration:none; color:inherit;">
+        <div class="lt-stat-icon success"><i class="bi bi-check-circle"></i></div>
+        <div class="lt-stat-info">
+            <h3 data-count-up="{{ stats.resolved }}">{{ stats.resolved }}</h3>
+            <small>Resolved</small>
+        </div>
+    </a>
+    <a href="{{ url_for('data_entry.dashboard', status='Overdue') }}" class="lt-stat-card" style="text-decoration:none; color:inherit;">
+        <div class="lt-stat-icon warning"><i class="bi bi-clock-history"></i></div>
+        <div class="lt-stat-info">
+            <h3 data-count-up="{{ stats.overdue }}">{{ stats.overdue }}</h3>
+            <small>Overdue</small>
+        </div>
+    </a>
+</div>
+
+<!-- Filters -->
+<div class="lt-card mb-4">
+    <div class="lt-card-body">
+        <form method="GET" class="row g-2 align-items-end lt-filter-form">
+            <div class="col-md-2">
+                <label class="form-label">Status</label>
+                <select name="status" class="form-select form-select-sm">
+                    <option value="">All</option>
+                    {% for s in ['Pending','Assigned','In Progress','Resolved','Closed'] %}
+                    <option value="{{ s }}" {{ 'selected' if active_filters.get('status') == s }}>{{ s }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Priority</label>
+                <select name="priority" class="form-select form-select-sm">
+                    <option value="">All</option>
+                    {% for p in ['Critical','High','Medium','Low'] %}
+                    <option value="{{ p }}" {{ 'selected' if active_filters.get('priority') == p }}>{{ p }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Direction</label>
+                <select name="direction" class="form-select form-select-sm">
+                    <option value="">All</option>
+                    <option value="Inward" {{ 'selected' if active_filters.get('direction') == 'Inward' }}>Inward</option>
+                    <option value="Outward" {{ 'selected' if active_filters.get('direction') == 'Outward' }}>Outward</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Section</label>
+                <select name="section" class="form-select form-select-sm">
+                    <option value="">All</option>
+                    {% for code, name in sections %}
+                    <option value="{{ code }}" {{ 'selected' if active_filters.get('section') == code }}>{{ name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Search</label>
+                <div class="input-group input-group-sm">
+                    <input type="text" name="q" class="form-control" value="{{ active_filters.get('q', '') }}" placeholder="Search…">
+                    <button class="btn btn-outline-secondary" type="submit"><i class="bi bi-search"></i></button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Letters Table -->
+<div class="lt-card">
+    <div class="lt-card-header">
+        <h5><i class="bi bi-table me-2"></i>Letters</h5>
+        <a href="{{ url_for('data_entry.export_letters') }}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-download me-1"></i> Export
+        </a>
+    </div>
+    <div class="lt-card-body p-0">
+        <div class="lt-bulk-shell">
+            <div class="d-flex gap-2 align-items-center" id="bulkBar">
+                <span class="text-muted me-2"><strong id="selectedCount">0</strong> selected</span>
+                <select id="bulkAction" class="form-select form-select-sm" style="width: auto;">
+                    <option value="">Bulk Actions…</option>
+                    <option value="assign">Assign Selected</option>
+                    <option value="unassign">Unassign Selected</option>
+                </select>
+                <button class="btn btn-sm btn-outline-secondary" onclick="executeBulkAction()">Apply</button>
+            </div>
+        </div>
+        <div class="lt-dt-shell">
+            <table class="table table-hover lt-table mb-0" id="lettersTable">
+                <thead>
+                    <tr>
+                        <th><input type="checkbox" id="selectAll"></th>
+                        <th>ID</th>
+                        <th>Direction</th>
+                        <th>From</th>
+                        <th>Subject</th>
+                        <th>Priority</th>
+                        <th>Status</th>
+                        <th>Assignee</th>
+                        <th>Case</th>
+                        <th>Received</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for letter in letters %}
+                    <tr>
+                        <td><input type="checkbox" class="row-check" value="{{ letter.id }}"></td>
+                        <td>{{ letter.id }}</td>
+                        <td>
+                            {% if letter.direction == 'Outward' %}
+                            <span class="lt-badge lt-badge-outward">Outward</span>
+                            {% else %}
+                            <span class="lt-badge lt-badge-assigned">Inward</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-truncate" style="max-width: 150px;">{{ letter.from_address }}</td>
+                        <td class="text-truncate" style="max-width: 200px;">
+                            <a href="{{ url_for('main.letter_detail', id=letter.id) }}">{{ letter.subject }}</a>
+                        </td>
+                        <td>
+                            {% if letter.priority %}
+                            <span class="lt-badge lt-badge-{{ letter.priority|lower }}">{{ letter.priority }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if letter.is_overdue %}
+                            <span class="lt-badge lt-badge-overdue">Overdue</span>
+                            {% else %}
+                            <span class="lt-badge lt-badge-{{ letter.status|lower|replace(' ','') }}">{{ letter.status }}</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ (letter.assignee.full_name or letter.assignee.username) if letter.assignee else ('User #' ~ letter.assignee_id if letter.assignee_id else '—') }}</td>
+                        <td>
+                            {% if letter.case %}
+                            <a href="{{ url_for('cases.case_detail', case_id=letter.case.id) }}">{{ letter.case.reference_number }}</a>
+                            {% else %}
+                            —
+                            {% endif %}
+                        </td>
+                        <td>{{ letter.import_date.strftime('%d %b %Y') if letter.import_date else '—' }}</td>
+                        <td>
+                            <div class="dropdown">
+                                <button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+                                    <i class="bi bi-three-dots-vertical"></i>
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end">
+                                    <li><a class="dropdown-item" href="{{ url_for('data_entry.edit_letter', id=letter.id) }}"><i class="bi bi-pencil me-2"></i>Edit</a></li>
+                                    <li><a class="dropdown-item" href="{{ url_for('data_entry.assign_letter', id=letter.id) }}"><i class="bi bi-person-plus me-2"></i>Assign</a></li>
+                                    {% if letter.case_id %}
+                                    <li><a class="dropdown-item" href="{{ url_for('cases.case_detail', case_id=letter.case_id) }}"><i class="bi bi-folder2-open me-2"></i>View Case</a></li>
+                                    {% else %}
+                                    <li><a class="dropdown-item" href="{{ url_for('cases.link_letter', letter_id=letter.id) }}"><i class="bi bi-link-45deg me-2"></i>Link to Case</a></li>
+                                    {% endif %}
+                                    {% if letter.assigned_to %}
+                                    <li><a class="dropdown-item" href="{{ url_for('data_entry.unassign_letter', id=letter.id) }}" data-lt-confirm="Unassign this letter?"><i class="bi bi-person-dash me-2"></i>Unassign</a></li>
+                                    {% endif %}
+                                </ul>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    $('#lettersTable').DataTable({
+        order: [],
+        scrollX: true,
+        scrollCollapse: true,
+        autoWidth: false,
+        fixedColumns: {
+            left: 1
+        },
+        columnDefs: [{ orderable: false, targets: [0, 10] }]
+    });
+});
+
+$('#selectAll').on('change', function() {
+    $('.row-check').prop('checked', this.checked);
+    updateBulkBar();
+});
+$(document).on('change', '.row-check', updateBulkBar);
+
+function updateBulkBar() {
+    var count = $('.row-check:checked').length;
+    $('#selectedCount').text(count);
+}
+
+function executeBulkAction() {
+    var action = $('#bulkAction').val();
+    if (!action) return;
+    var ids = [];
+    $('.row-check:checked').each(function() { ids.push($(this).val()); });
+    if (ids.length === 0) { ltToast('No letters selected', 'warning'); return; }
+    submitBulk(action, ids);
+}
+
+function submitBulk(action, ids) {
+    var form = $('<form method="POST" action="{{ url_for("data_entry.bulk_action") }}">');
+    form.append('<input type="hidden" name="csrf_token" value="' + $('meta[name=csrf-token]').attr('content') + '">');
+    form.append('<input type="hidden" name="action" value="' + action + '">');
+    ids.forEach(function(id) {
+        form.append('<input type="hidden" name="letter_ids" value="' + id + '">');
+    });
+    $('body').append(form);
+    form.submit();
+}
+</script>
+{% endblock %}

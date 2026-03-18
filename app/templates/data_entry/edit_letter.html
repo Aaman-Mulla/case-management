@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}Edit Letter{% endblock %}
+
+{% block content %}
+<div class="lt-breadcrumb">
+    <a href="{{ url_for('data_entry.dashboard') }}">Dashboard</a>
+    <span class="separator">/</span>
+    <span>Edit Letter #{{ letter.id }}</span>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="lt-card">
+            <div class="lt-card-header">
+                <h5><i class="bi bi-pencil me-2"></i>Edit Letter</h5>
+                <span class="lt-badge lt-badge-{{ 'outward' if letter.direction == 'Outward' else 'assigned' }}">{{ letter.direction }}</span>
+            </div>
+            <div class="lt-card-body">
+                <form method="POST" novalidate>
+                    {{ form.hidden_tag() }}
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="from_address" class="form-label">From Address <span class="text-danger">*</span></label>
+                            {{ form.from_address(class="form-control", rows="3") }}
+                            {% for e in form.from_address.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="to_address" class="form-label">To Address <span class="text-danger">*</span></label>
+                            {{ form.to_address(class="form-control", rows="3") }}
+                            {% for e in form.to_address.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="subject" class="form-label">Subject <span class="text-danger">*</span></label>
+                        {{ form.subject(class="form-control") }}
+                        {% for e in form.subject.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="sender_name" class="form-label">Sender Name</label>
+                            {{ form.sender_name(class="form-control") }}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="priority" class="form-label">Priority</label>
+                            {{ form.priority(class="form-control form-select") }}
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-8 mb-3">
+                            <label for="received_date" class="form-label">Date &amp; Time Received</label>
+                            {{ form.received_date(class="form-control", type="datetime-local") }}
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label for="section" class="form-label">Section</label>
+                            {{ form.section(class="form-control form-select select2") }}
+                        </div>
+                    </div>
+
+                    {% if letter.assignee_id and not letter.deadline_date %}
+                    <div class="mb-3">
+                        <label for="deadline_days" class="form-label">Set Deadline (days)</label>
+                        {{ form.deadline_days(class="form-control", type="number", min="1", max="365", placeholder="e.g. 7") }}
+                        <small class="text-muted">This letter is assigned but has no deadline. Add one now.</small>
+                        {% for e in form.deadline_days.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+                    </div>
+                    {% endif %}
+
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-lt-accent">
+                            <i class="bi bi-check-lg me-1"></i> Save Changes
+                        </button>
+                        <a href="{{ url_for('data_entry.dashboard') }}" class="btn btn-outline-secondary">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

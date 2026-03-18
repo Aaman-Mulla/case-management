@@ -1,0 +1,637 @@
+{% extends "base.html" %}
+{% block title %}Analytics{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="mb-0 fw-bold">Analytics</h4>
+    <div class="d-flex gap-2">
+        <button class="btn btn-outline-secondary btn-sm" id="analyticsRefreshBtn">
+            <i class="bi bi-arrow-clockwise me-1"></i> Refresh
+        </button>
+        <button class="btn btn-outline-secondary btn-sm" id="analyticsCsvBtn">
+            <i class="bi bi-download me-1"></i> Export CSV
+        </button>
+    </div>
+</div>
+
+<div class="lt-card mb-4">
+    <div class="lt-card-body">
+        <form class="row g-2 align-items-end" id="analyticsFilterForm">
+            <div class="col-md-2">
+                <label class="form-label">Start Date</label>
+                <input type="date" class="form-control form-control-sm" id="fltStartDate">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">End Date</label>
+                <input type="date" class="form-control form-control-sm" id="fltEndDate">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Section</label>
+                <select id="fltSection" class="form-select form-select-sm">
+                    <option value="">All Sections</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Direction</label>
+                <select id="fltDirection" class="form-select form-select-sm">
+                    <option value="">All Directions</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Status</label>
+                <select id="fltStatus" class="form-select form-select-sm">
+                    <option value="">All Statuses</option>
+                </select>
+            </div>
+            <div class="col-md-2 d-flex gap-2">
+                <button type="submit" class="btn btn-lt-accent btn-sm">Apply</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="analyticsResetBtn">Reset</button>
+            </div>
+            <div class="col-md-2">
+                <div class="form-check form-switch mt-2">
+                    <input class="form-check-input" type="checkbox" id="compareToggle" checked>
+                    <label class="form-check-label" for="compareToggle">Compare previous</label>
+                </div>
+            </div>
+            <div class="col-12 d-flex flex-wrap gap-2 mt-2">
+                <button type="button" class="btn btn-outline-secondary btn-sm lt-quick-range" data-range="today">Today</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm lt-quick-range" data-range="week">This Week</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm lt-quick-range" data-range="month">This Month</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm lt-quick-range" data-range="quarter">This Quarter</button>
+            </div>
+        </form>
+
+        <div class="lt-filter-chips mt-3 d-none" id="analyticsActiveFilters"></div>
+    </div>
+</div>
+
+<div class="row g-3 mb-4" id="kpiRow">
+    <div class="col-md-3">
+        <div class="lt-kpi-card">
+            <div class="lt-kpi-label">Total Letters</div>
+            <div class="lt-kpi-value" id="kpiTotal">0</div>
+            <div class="lt-kpi-delta" id="kpiDeltaTotal"></div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="lt-kpi-card">
+            <div class="lt-kpi-label">Resolved %</div>
+            <div class="lt-kpi-value" id="kpiResolvedRate">0%</div>
+            <div class="lt-kpi-delta" id="kpiDeltaResolved"></div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="lt-kpi-card">
+            <div class="lt-kpi-label">Open</div>
+            <div class="lt-kpi-value" id="kpiOpenCount">0</div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="lt-kpi-card">
+            <div class="lt-kpi-label">SLA Breach %</div>
+            <div class="lt-kpi-value" id="kpiBreachRate">0%</div>
+            <div class="lt-kpi-delta" id="kpiDeltaBreach"></div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="lt-kpi-card">
+            <div class="lt-kpi-label">Avg Closure (days)</div>
+            <div class="lt-kpi-value" id="kpiAvgTurnaround">0</div>
+            <div class="lt-kpi-delta" id="kpiDeltaTurnaround"></div>
+        </div>
+    </div>
+</div>
+
+<div id="analyticsLoading" class="lt-analytics-state">Loading analytics…</div>
+<div id="analyticsError" class="lt-analytics-state d-none">
+    <div>Unable to load analytics.</div>
+    <button class="btn btn-outline-secondary btn-sm mt-2" id="analyticsRetryBtn">Retry</button>
+</div>
+<div id="analyticsEmpty" class="lt-analytics-state d-none">No data for selected filters.</div>
+
+<div class="text-muted small mb-3" id="analyticsLastRefreshed"></div>
+
+<div class="row g-4" id="analyticsChartsWrap">
+    <div class="col-lg-6">
+        <div class="lt-chart-card">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h6 class="mb-0">Letters by Status</h6>
+                <button class="btn btn-outline-secondary btn-sm lt-chart-download" data-chart="statusChart">PNG</button>
+            </div>
+            <div class="lt-chart-container"><canvas id="statusChart"></canvas></div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="lt-chart-card">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h6 class="mb-0">Letters by Priority</h6>
+                <button class="btn btn-outline-secondary btn-sm lt-chart-download" data-chart="priorityChart">PNG</button>
+            </div>
+            <div class="lt-chart-container"><canvas id="priorityChart"></canvas></div>
+        </div>
+    </div>
+    <div class="col-12">
+        <div class="lt-chart-card">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h6 class="mb-0">Monthly Letter Trends</h6>
+                <button class="btn btn-outline-secondary btn-sm lt-chart-download" data-chart="trendsChart">PNG</button>
+            </div>
+            <div class="lt-chart-container"><canvas id="trendsChart"></canvas></div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="lt-chart-card">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h6 class="mb-0">Letters by Section</h6>
+                <div class="d-flex gap-2">
+                    <select id="sectionMetric" class="form-select form-select-sm" style="width: auto;">
+                        <option value="count" selected>Count</option>
+                        <option value="percent">Percent</option>
+                    </select>
+                    <select id="sectionTopN" class="form-select form-select-sm" style="width: auto;">
+                        <option value="5">Top 5</option>
+                        <option value="10" selected>Top 10</option>
+                        <option value="999">All</option>
+                    </select>
+                    <button class="btn btn-outline-secondary btn-sm lt-chart-download" data-chart="sectionChart">PNG</button>
+                </div>
+            </div>
+            <div class="lt-chart-container"><canvas id="sectionChart"></canvas></div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="lt-chart-card">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h6 class="mb-0">Inward vs Outward</h6>
+                <button class="btn btn-outline-secondary btn-sm lt-chart-download" data-chart="directionChart">PNG</button>
+            </div>
+            <div class="lt-chart-container"><canvas id="directionChart"></canvas></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const charts = {};
+    let latestPayload = null;
+
+    const fltStartDate = document.getElementById('fltStartDate');
+    const fltEndDate = document.getElementById('fltEndDate');
+    const fltSection = document.getElementById('fltSection');
+    const fltDirection = document.getElementById('fltDirection');
+    const fltStatus = document.getElementById('fltStatus');
+    const filterForm = document.getElementById('analyticsFilterForm');
+    const sectionTopN = document.getElementById('sectionTopN');
+    const sectionMetric = document.getElementById('sectionMetric');
+    const compareToggle = document.getElementById('compareToggle');
+    const lastRefreshedEl = document.getElementById('analyticsLastRefreshed');
+    const activeFiltersEl = document.getElementById('analyticsActiveFilters');
+    let analyticsAutoApplyTimer = null;
+
+    const loadingEl = document.getElementById('analyticsLoading');
+    const errorEl = document.getElementById('analyticsError');
+    const emptyEl = document.getElementById('analyticsEmpty');
+    const chartsWrap = document.getElementById('analyticsChartsWrap');
+
+    function formatMonth(ym) {
+        const [y, m] = ym.split('-');
+        return new Date(parseInt(y), parseInt(m) - 1, 1).toLocaleString('en', { month: 'short', year: '2-digit' });
+    }
+
+    function setLoading(state) {
+        loadingEl.classList.toggle('d-none', !state);
+        chartsWrap.classList.toggle('d-none', state);
+        if (state) {
+            errorEl.classList.add('d-none');
+            emptyEl.classList.add('d-none');
+        }
+    }
+
+    function setError(state) {
+        errorEl.classList.toggle('d-none', !state);
+        if (state) {
+            loadingEl.classList.add('d-none');
+            chartsWrap.classList.add('d-none');
+            emptyEl.classList.add('d-none');
+        }
+    }
+
+    function setEmpty(state) {
+        emptyEl.classList.toggle('d-none', !state);
+        chartsWrap.classList.toggle('d-none', state);
+    }
+
+    function currentFilters() {
+        return {
+            start_date: fltStartDate.value || '',
+            end_date: fltEndDate.value || '',
+            section: fltSection.value || '',
+            direction: fltDirection.value || '',
+            status: fltStatus.value || '',
+        };
+    }
+
+    function toQueryString(params) {
+        const urlParams = new URLSearchParams();
+        Object.entries(params).forEach(([k, v]) => {
+            if (v) urlParams.set(k, v);
+        });
+        return urlParams.toString();
+    }
+
+    function parseFiltersFromUrl() {
+        const q = new URLSearchParams(window.location.search);
+        fltStartDate.value = q.get('start_date') || '';
+        fltEndDate.value = q.get('end_date') || '';
+        fltSection.value = q.get('section') || '';
+        fltDirection.value = q.get('direction') || '';
+        fltStatus.value = q.get('status') || '';
+    }
+
+    function updateUrlFromFilters() {
+        const q = toQueryString(currentFilters());
+        const newUrl = q ? `${window.location.pathname}?${q}` : window.location.pathname;
+        window.history.replaceState({}, '', newUrl);
+    }
+
+    function scheduleAutoApply() {
+        window.clearTimeout(analyticsAutoApplyTimer);
+        analyticsAutoApplyTimer = window.setTimeout(function() {
+            loadAnalytics();
+        }, 250);
+    }
+
+    function fillSelect(selectEl, options, currentValue, defaultLabel) {
+        selectEl.innerHTML = `<option value="">${defaultLabel}</option>`;
+        (options || []).forEach((value) => {
+            const opt = document.createElement('option');
+            opt.value = value;
+            opt.textContent = value;
+            if (value === currentValue) opt.selected = true;
+            selectEl.appendChild(opt);
+        });
+    }
+
+    function renderActiveFilterChips() {
+        const filters = currentFilters();
+        const chips = [];
+
+        if (filters.start_date) {
+            chips.push({ key: 'start_date', label: `From: ${filters.start_date}` });
+        }
+        if (filters.end_date) {
+            chips.push({ key: 'end_date', label: `To: ${filters.end_date}` });
+        }
+        if (filters.section) {
+            chips.push({ key: 'section', label: `Section: ${filters.section}` });
+        }
+        if (filters.direction) {
+            chips.push({ key: 'direction', label: `Direction: ${filters.direction}` });
+        }
+        if (filters.status) {
+            chips.push({ key: 'status', label: `Status: ${filters.status}` });
+        }
+
+        if (!chips.length) {
+            activeFiltersEl.innerHTML = '';
+            activeFiltersEl.classList.add('d-none');
+            return;
+        }
+
+        activeFiltersEl.classList.remove('d-none');
+        activeFiltersEl.innerHTML = chips.map((chip) => `
+            <span class="lt-filter-chip">
+                ${chip.label}
+                <button type="button" class="lt-chip-remove" data-filter-key="${chip.key}" aria-label="Remove ${chip.label}">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </span>
+        `).join('');
+
+        activeFiltersEl.querySelectorAll('.lt-chip-remove').forEach((btn) => {
+            btn.addEventListener('click', function() {
+                const key = this.getAttribute('data-filter-key');
+                if (key === 'start_date') fltStartDate.value = '';
+                if (key === 'end_date') fltEndDate.value = '';
+                if (key === 'section') fltSection.value = '';
+                if (key === 'direction') fltDirection.value = '';
+                if (key === 'status') fltStatus.value = '';
+                loadAnalytics();
+            });
+        });
+    }
+
+    function setDelta(elementId, value, suffix='') {
+        const el = document.getElementById(elementId);
+        if (!el) return;
+        if (value === null || value === undefined) {
+            el.textContent = '';
+            el.className = 'lt-kpi-delta';
+            return;
+        }
+        const numeric = Number(value);
+        const sign = numeric > 0 ? '+' : '';
+        el.textContent = `${sign}${numeric}${suffix} vs previous period`;
+        el.className = `lt-kpi-delta ${numeric > 0 ? 'up' : numeric < 0 ? 'down' : ''}`;
+    }
+
+    function renderKpis(data) {
+        document.getElementById('kpiTotal').textContent = data.total || 0;
+        document.getElementById('kpiResolvedRate').textContent = `${data.resolved_rate || 0}%`;
+        document.getElementById('kpiOpenCount').textContent = data.open_count || 0;
+        document.getElementById('kpiBreachRate').textContent = `${data.sla_breach_rate || 0}%`;
+        document.getElementById('kpiAvgTurnaround').textContent = data.avg_turnaround_days || 0;
+
+        if (compareToggle.checked && data.comparison && data.comparison.delta) {
+            setDelta('kpiDeltaTotal', data.comparison.delta.total);
+            setDelta('kpiDeltaResolved', data.comparison.delta.resolved_rate, '%');
+            setDelta('kpiDeltaBreach', data.comparison.delta.sla_breach_rate, '%');
+            setDelta('kpiDeltaTurnaround', data.comparison.delta.avg_turnaround_days, 'd');
+        } else {
+            setDelta('kpiDeltaTotal', null);
+            setDelta('kpiDeltaResolved', null);
+            setDelta('kpiDeltaBreach', null);
+            setDelta('kpiDeltaTurnaround', null);
+        }
+    }
+
+    function destroyCharts() {
+        Object.values(charts).forEach((instance) => {
+            if (instance) instance.destroy();
+        });
+    }
+
+    function drillToRegistry(kind, value) {
+        const q = new URLSearchParams();
+        const filters = currentFilters();
+        if (filters.start_date) q.set('start_date', filters.start_date);
+        if (filters.end_date) q.set('end_date', filters.end_date);
+
+        if (kind === 'status' && value) q.set('status', value);
+        if (kind === 'section' && value) q.set('section', value);
+
+        if (kind === 'direction') {
+            const dir = (value || '').toLowerCase();
+            const base = dir === 'outward' ? '/admin/outward-registry' : '/admin/inward-registry';
+            window.location.href = q.toString() ? `${base}?${q}` : base;
+            return;
+        }
+
+        const base = '/admin/inward-registry';
+        window.location.href = q.toString() ? `${base}?${q}` : base;
+    }
+
+    function makePalette(n) {
+        const base = ['#334155', '#0F766E', '#3B82F6', '#F59E0B', '#EF4444', '#8B5CF6', '#14B8A6', '#64748B', '#22C55E', '#EC4899'];
+        const out = [];
+        for (let i = 0; i < n; i++) out.push(base[i % base.length]);
+        return out;
+    }
+
+    function renderCharts(data) {
+        destroyCharts();
+        const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+        const gridColor = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)';
+        const textColor = isDark ? '#94A3B8' : '#475569';
+
+        Chart.defaults.color = textColor;
+        Chart.defaults.borderColor = gridColor;
+
+        const statusLabels = Object.keys(data.by_status || {});
+        const statusValues = Object.values(data.by_status || {});
+        charts.statusChart = new Chart(document.getElementById('statusChart'), {
+            type: 'doughnut',
+            data: { labels: statusLabels, datasets: [{ data: statusValues, backgroundColor: makePalette(statusLabels.length) }] },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                onClick: (_evt, elements) => {
+                    if (!elements.length) return;
+                    drillToRegistry('status', statusLabels[elements[0].index]);
+                }
+            }
+        });
+
+        const prLabels = Object.keys(data.by_priority || {});
+        const prValues = Object.values(data.by_priority || {});
+        charts.priorityChart = new Chart(document.getElementById('priorityChart'), {
+            type: 'doughnut',
+            data: { labels: prLabels, datasets: [{ data: prValues, backgroundColor: makePalette(prLabels.length) }] },
+            options: { responsive: true, maintainAspectRatio: false }
+        });
+
+        const trendLabels = (data.monthly_trends || []).map(t => formatMonth(t.month));
+        const trendValues = (data.monthly_trends || []).map(t => t.count);
+        charts.trendsChart = new Chart(document.getElementById('trendsChart'), {
+            type: 'line',
+            data: {
+                labels: trendLabels,
+                datasets: [{
+                    label: 'Letters',
+                    data: trendValues,
+                    borderColor: '#0F766E',
+                    backgroundColor: 'rgba(15,118,110,0.12)',
+                    fill: true,
+                    tension: 0.28
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: false }
+        });
+
+        const topN = parseInt(sectionTopN.value || '10', 10);
+        const metricMode = sectionMetric.value || 'count';
+        const sectionEntries = Object.entries(data.by_section || {}).sort((a, b) => b[1] - a[1]);
+        const scopedSections = topN >= 999 ? sectionEntries : sectionEntries.slice(0, topN);
+        const secLabels = scopedSections.map(([name]) => name);
+        const totalSection = scopedSections.reduce((sum, [, count]) => sum + count, 0);
+        const secValues = scopedSections.map(([, count]) => {
+            if (metricMode === 'percent') {
+                return totalSection ? Number(((count / totalSection) * 100).toFixed(1)) : 0;
+            }
+            return count;
+        });
+        charts.sectionChart = new Chart(document.getElementById('sectionChart'), {
+            type: 'bar',
+            data: { labels: secLabels, datasets: [{ label: metricMode === 'percent' ? 'Percent' : 'Count', data: secValues, backgroundColor: '#0F766E' }] },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                indexAxis: 'y',
+                onClick: (_evt, elements) => {
+                    if (!elements.length) return;
+                    drillToRegistry('section', secLabels[elements[0].index]);
+                }
+            }
+        });
+
+        const dirLabels = Object.keys(data.by_direction || {});
+        const dirValues = Object.values(data.by_direction || {});
+        charts.directionChart = new Chart(document.getElementById('directionChart'), {
+            type: 'pie',
+            data: { labels: dirLabels, datasets: [{ data: dirValues, backgroundColor: makePalette(dirLabels.length) }] },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                onClick: (_evt, elements) => {
+                    if (!elements.length) return;
+                    drillToRegistry('direction', dirLabels[elements[0].index]);
+                }
+            }
+        });
+    }
+
+    function exportCurrentCsv() {
+        if (!latestPayload) return;
+        const rows = [
+            ['Metric', 'Value'],
+            ['Total Letters', latestPayload.total || 0],
+            ['Open Count', latestPayload.open_count || 0],
+            ['Resolved Count', latestPayload.resolved_count || 0],
+            ['Overdue Count', latestPayload.overdue_count || 0],
+            ['Resolved Rate (%)', latestPayload.resolved_rate || 0],
+            ['SLA Breach Rate (%)', latestPayload.sla_breach_rate || 0],
+            ['Avg Turnaround (days)', latestPayload.avg_turnaround_days || 0],
+            [],
+            ['By Status', 'Count'],
+            ...Object.entries(latestPayload.by_status || {}),
+            [],
+            ['By Priority', 'Count'],
+            ...Object.entries(latestPayload.by_priority || {}),
+            [],
+            ['By Section', 'Count'],
+            ...Object.entries(latestPayload.by_section || {}),
+            [],
+            ['By Direction', 'Count'],
+            ...Object.entries(latestPayload.by_direction || {}),
+        ];
+
+        const csv = rows.map(row => row.map(cell => `"${String(cell ?? '').replaceAll('"', '""')}"`).join(',')).join('\n');
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `analytics_${new Date().toISOString().slice(0, 10)}.csv`;
+        link.click();
+        URL.revokeObjectURL(link.href);
+    }
+
+    function downloadChartPng(chartName) {
+        const chart = charts[chartName];
+        if (!chart) return;
+        const link = document.createElement('a');
+        link.href = chart.toBase64Image();
+        link.download = `${chartName}_${new Date().toISOString().slice(0, 10)}.png`;
+        link.click();
+    }
+
+    async function loadAnalytics() {
+        setLoading(true);
+        const qs = toQueryString(currentFilters());
+        updateUrlFromFilters();
+        renderActiveFilterChips();
+        try {
+            const response = await fetch(`/api/analytics/letters${qs ? `?${qs}` : ''}`);
+            if (!response.ok) throw new Error('API error');
+            const data = await response.json();
+            latestPayload = data;
+            lastRefreshedEl.textContent = `Last refreshed: ${new Date().toLocaleString()}`;
+
+            fillSelect(fltSection, data.available_filters?.sections || [], data.filters?.section || '', 'All Sections');
+            fillSelect(fltDirection, data.available_filters?.directions || [], data.filters?.direction || '', 'All Directions');
+            fillSelect(fltStatus, data.available_filters?.statuses || [], data.filters?.status || '', 'All Statuses');
+            renderActiveFilterChips();
+
+            renderKpis(data);
+            if (!data.total) {
+                setLoading(false);
+                setEmpty(true);
+                return;
+            }
+
+            setEmpty(false);
+            setError(false);
+            setLoading(false);
+            renderCharts(data);
+        } catch (_err) {
+            setError(true);
+        }
+    }
+
+    function applyQuickRange(key) {
+        const today = new Date();
+        const iso = (d) => d.toISOString().slice(0, 10);
+        const start = new Date(today);
+        const end = new Date(today);
+
+        if (key === 'today') {
+            // already today
+        } else if (key === 'week') {
+            const dow = start.getDay();
+            const offset = (dow === 0 ? 6 : dow - 1);
+            start.setDate(start.getDate() - offset);
+        } else if (key === 'month') {
+            start.setDate(1);
+        } else if (key === 'quarter') {
+            const month = start.getMonth();
+            const qStart = month - (month % 3);
+            start.setMonth(qStart, 1);
+        }
+
+        fltStartDate.value = iso(start);
+        fltEndDate.value = iso(end);
+        loadAnalytics();
+    }
+
+    document.getElementById('analyticsRefreshBtn').addEventListener('click', loadAnalytics);
+    document.getElementById('analyticsRetryBtn').addEventListener('click', loadAnalytics);
+    document.getElementById('analyticsCsvBtn').addEventListener('click', exportCurrentCsv);
+    document.getElementById('analyticsResetBtn').addEventListener('click', function() {
+        fltStartDate.value = '';
+        fltEndDate.value = '';
+        fltSection.value = '';
+        fltDirection.value = '';
+        fltStatus.value = '';
+        loadAnalytics();
+    });
+
+    filterForm.addEventListener('submit', function(event) {
+        event.preventDefault();
+        loadAnalytics();
+    });
+
+    [fltStartDate, fltEndDate, fltSection, fltDirection, fltStatus].forEach((field) => {
+        field.addEventListener('change', scheduleAutoApply);
+    });
+
+    sectionTopN.addEventListener('change', function() {
+        if (latestPayload) renderCharts(latestPayload);
+    });
+    sectionMetric.addEventListener('change', function() {
+        if (latestPayload) renderCharts(latestPayload);
+    });
+    compareToggle.addEventListener('change', function() {
+        if (latestPayload) renderKpis(latestPayload);
+    });
+
+    document.querySelectorAll('.lt-quick-range').forEach((btn) => {
+        btn.addEventListener('click', function() {
+            applyQuickRange(this.getAttribute('data-range'));
+        });
+    });
+
+    document.querySelectorAll('.lt-chart-download').forEach((btn) => {
+        btn.addEventListener('click', function() {
+            downloadChartPng(this.getAttribute('data-chart'));
+        });
+    });
+
+    parseFiltersFromUrl();
+    const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+    if (isDark) {
+        chartsWrap.classList.add('lt-analytics-dark');
+    }
+    loadAnalytics();
+});
+</script>
+{% endblock %}

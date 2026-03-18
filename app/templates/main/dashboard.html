@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+{% block title %}My Dashboard{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="mb-0 fw-bold">My Assigned Letters</h4>
+</div>
+
+<!-- Stats -->
+<div class="lt-stats-grid">
+    <a href="{{ url_for('main.dashboard') }}" class="lt-stat-card" style="text-decoration:none; color:inherit;">
+        <div class="lt-stat-icon primary"><i class="bi bi-envelope-paper"></i></div>
+        <div class="lt-stat-info">
+            <h3 data-count-up="{{ stats.total }}">{{ stats.total }}</h3>
+            <small>Total Assigned</small>
+        </div>
+    </a>
+    <a href="{{ url_for('main.dashboard', status='In Progress') }}" class="lt-stat-card" style="text-decoration:none; color:inherit;">
+        <div class="lt-stat-icon accent"><i class="bi bi-arrow-repeat"></i></div>
+        <div class="lt-stat-info">
+            <h3 data-count-up="{{ stats.in_progress }}">{{ stats.in_progress }}</h3>
+            <small>In Progress</small>
+        </div>
+    </a>
+    <a href="{{ url_for('main.dashboard', status='Resolved') }}" class="lt-stat-card" style="text-decoration:none; color:inherit;">
+        <div class="lt-stat-icon success"><i class="bi bi-check-circle"></i></div>
+        <div class="lt-stat-info">
+            <h3 data-count-up="{{ stats.resolved }}">{{ stats.resolved }}</h3>
+            <small>Resolved</small>
+        </div>
+    </a>
+    <a href="{{ url_for('main.dashboard', status='Overdue') }}" class="lt-stat-card" style="text-decoration:none; color:inherit;">
+        <div class="lt-stat-icon warning"><i class="bi bi-clock-history"></i></div>
+        <div class="lt-stat-info">
+            <h3 data-count-up="{{ stats.overdue }}">{{ stats.overdue }}</h3>
+            <small>Overdue</small>
+        </div>
+    </a>
+</div>
+
+<!-- Filters -->
+<div class="lt-card mb-4">
+    <div class="lt-card-body">
+        <form method="GET" class="row g-2 align-items-end lt-filter-form">
+            <div class="col-md-3">
+                <label class="form-label">Status</label>
+                <select name="status" class="form-select form-select-sm">
+                    <option value="">All</option>
+                    {% for s in ['Assigned','In Progress','Resolved','Closed'] %}
+                    <option value="{{ s }}" {{ 'selected' if active_filters.get('status') == s }}>{{ s }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Priority</label>
+                <select name="priority" class="form-select form-select-sm">
+                    <option value="">All</option>
+                    {% for p in ['Critical','High','Medium','Low'] %}
+                    <option value="{{ p }}" {{ 'selected' if active_filters.get('priority') == p }}>{{ p }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Sender</label>
+                <select name="sender_name" class="form-select form-select-sm select2">
+                    <option value="">All</option>
+                    {% for s in senders %}
+                    <option value="{{ s }}" {{ 'selected' if active_filters.get('sender_name') == s }}>{{ s }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Search</label>
+                <div class="input-group input-group-sm">
+                    <input type="text" name="q" class="form-control" value="{{ active_filters.get('q', '') }}" placeholder="Search…">
+                    <button class="btn btn-outline-secondary" type="submit"><i class="bi bi-search"></i></button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Letters Table -->
+<div class="lt-card">
+    <div class="lt-card-header">
+        <h5><i class="bi bi-table me-2"></i>Letters</h5>
+    </div>
+    <div class="lt-card-body p-0">
+        <div class="lt-dt-shell">
+            <table class="table table-hover lt-table mb-0" id="lettersTable">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Direction</th>
+                        <th>From</th>
+                        <th>Subject</th>
+                        <th>Priority</th>
+                        <th>Status</th>
+                        <th>Case</th>
+                        <th>Deadline</th>
+                        <th>Received</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for letter in letters %}
+                    <tr>
+                        <td>{{ letter.id }}</td>
+                        <td>
+                            {% if letter.direction == 'Outward' %}
+                            <span class="lt-badge lt-badge-outward">Outward</span>
+                            {% else %}
+                            <span class="lt-badge lt-badge-assigned">Inward</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-truncate" style="max-width: 150px;">{{ letter.from_address }}</td>
+                        <td>
+                            <a href="{{ url_for('main.letter_detail', id=letter.id) }}">{{ letter.subject }}</a>
+                        </td>
+                        <td>
+                            {% if letter.priority %}
+                            <span class="lt-badge lt-badge-{{ letter.priority|lower }}">{{ letter.priority }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if letter.is_overdue %}
+                            <span class="lt-badge lt-badge-overdue">Overdue</span>
+                            {% else %}
+                            <span class="lt-badge lt-badge-{{ letter.status|lower|replace(' ','') }}">{{ letter.status }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if letter.case %}
+                            <a href="{{ url_for('cases.case_detail', case_id=letter.case.id) }}">{{ letter.case.reference_number }}</a>
+                            {% else %}
+                            —
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if letter.deadline_date %}
+                            <span class="{{ 'text-danger' if letter.is_overdue else '' }}">
+                                {{ letter.deadline_date.strftime('%d %b %Y') }}
+                            </span>
+                            {% else %}
+                            —
+                            {% endif %}
+                        </td>
+                        <td>{{ letter.import_date.strftime('%d %b %Y') if letter.import_date else '—' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    $('#lettersTable').DataTable({
+        order: [],
+        scrollX: true,
+        scrollCollapse: true,
+        autoWidth: false
+    });
+});
+</script>
+{% endblock %}

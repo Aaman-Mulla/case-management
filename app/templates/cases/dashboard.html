@@ -1,0 +1,282 @@
+{% extends "base.html" %}
+{% block title %}Cases Dashboard{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="mb-0 fw-bold">Cases Dashboard</h4>
+    <!-- UX-2: New Case button -->
+    {% if current_user.is_admin %}
+    <a href="{{ url_for('cases.create_case') }}" class="btn btn-lt-accent btn-sm" data-shortcut="new">
+        <i class="bi bi-plus-lg me-1"></i> New Case
+    </a>
+    {% endif %}
+</div>
+
+<!-- Stats -->
+<div class="lt-stats-grid">
+    {% for status_name, count in stats.items() %}
+    <a href="{{ url_for('cases.dashboard', status=status_name) }}" class="lt-stat-card" style="text-decoration:none; color:inherit;">
+        <div class="lt-stat-icon {{ 'accent' if status_name == 'Open' else ('primary' if status_name == 'Assigned' else ('warning' if status_name in ('Under Investigation', 'Awaiting Response') else 'success')) }}">
+            <i class="bi bi-folder2{{ '-open' if status_name == 'Open' else '' }}"></i>
+        </div>
+        <div class="lt-stat-info">
+            <h3 data-count-up="{{ count }}">{{ count }}</h3>
+            <small>{{ status_name }}</small>
+        </div>
+    </a>
+    {% endfor %}
+</div>
+
+<!-- Filters -->
+<div class="lt-card mb-4">
+    <div class="lt-card-body">
+        <form method="GET" class="row g-2 align-items-end">
+            <div class="col-md-2">
+                <label class="form-label">Status</label>
+                <select name="status" class="form-select form-select-sm">
+                    <option value="">All</option>
+                    {% for s in case_statuses %}
+                    <option value="{{ s }}" {{ 'selected' if request.args.get('status') == s }}>{{ s }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Section</label>
+                <select name="section" class="form-select form-select-sm select2">
+                    <option value="">All</option>
+                    {% for code, name in sections %}
+                    <option value="{{ code }}" {{ 'selected' if request.args.get('section') == code }}>{{ name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Assignee</label>
+                <select name="assignee" class="form-select form-select-sm">
+                    <option value="">All</option>
+                    {% for u in users %}
+                    <option value="{{ u.id }}" {{ 'selected' if request.args.get('assignee')|string == u.id|string }}>{{ u.full_name or u.username }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Search</label>
+                <div class="input-group input-group-sm">
+                    <input type="text" name="q" class="form-control" value="{{ request.args.get('q', '') }}" placeholder="Search…">
+                    <button class="btn btn-outline-secondary" type="submit"><i class="bi bi-search"></i></button>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="form-check mt-4 pt-2">
+                    <input class="form-check-input" type="checkbox" id="pausedOnly" name="paused" value="1" {{ 'checked' if request.args.get('paused') in ['1', 'true', 'yes', 'on'] }}>
+                    <label class="form-check-label" for="pausedOnly">Show paused only</label>
+                </div>
+            </div>
+        </form>
+        {% if active_filters %}
+        <div class="lt-filter-chips mt-2">
+            <span class="badge bg-warning text-dark me-2"><i class="bi bi-funnel-fill me-1"></i>Filtered</span>
+            {% for key, val in active_filters.items() %}
+            <span class="lt-filter-chip" data-field="{{ key }}">
+                {{ key }}: {{ val }}
+                <span class="lt-chip-remove"><i class="bi bi-x"></i></span>
+            </span>
+            {% endfor %}
+            <a href="{{ url_for('cases.dashboard') }}" class="btn btn-sm btn-outline-danger ms-2">
+                <i class="bi bi-x-circle me-1"></i>Clear All
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Cases Table -->
+<div class="lt-card">
+    <div class="lt-card-body p-0">
+        {% if current_user.is_admin %}
+        <div class="lt-bulk-shell">
+            <div class="d-flex gap-2 align-items-center" id="bulkBar">
+                <span class="text-muted me-2"><strong id="selectedCount">0</strong> selected</span>
+                <select id="bulkAction" class="form-select form-select-sm" style="width: auto;">
+                    <option value="">Bulk Actions…</option>
+                    <option value="assign">Assign Selected</option>
+                    <option value="delete">Delete Selected</option>
+                </select>
+                <select id="bulkAssignee" class="form-select form-select-sm" style="width: auto; display:none;">
+                    <option value="">-- Select Assignee --</option>
+                    {% for u in users %}
+                    <option value="{{ u.id }}">{{ u.full_name or u.username }}</option>
+                    {% endfor %}
+                </select>
+                <button class="btn btn-sm btn-outline-secondary" onclick="executeCaseBulk()">Apply</button>
+            </div>
+        </div>
+        {% endif %}
+        <div class="lt-dt-shell">
+            <table class="table table-hover lt-table mb-0" id="casesTable">
+                <thead>
+                    <tr>
+                        <th><input type="checkbox" id="selectAll"></th>
+                        <th>Ref</th>
+                        <th>Title</th>
+                        <th>Section</th>
+                        <th>Status</th>
+                        <th>Priority</th>
+                        <th>Assignee</th>
+                        <th>Date Assigned</th>
+                        <th>Letters</th>
+                        <th>Deadline</th>
+                        <th>Days Left</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for case in cases %}
+                    <tr>
+                        <td><input type="checkbox" class="row-check" value="{{ case.id }}"></td>
+                        <td><a href="{{ url_for('cases.case_detail', case_id=case.id) }}"><strong>{{ case.reference_number }}</strong></a></td>
+                        <td class="text-truncate" style="max-width: 200px;">{{ case.title }}</td>
+                        <td>{{ case.section }}</td>
+                        <td>
+                            {% set sclass = case.status|lower|replace(' ', '') %}
+                            <span class="lt-badge lt-badge-{{ sclass }}">{{ case.status }}</span>
+                        </td>
+                        <td>
+                            {% if case.priority %}
+                            <span class="lt-badge lt-badge-{{ case.priority|lower }}">{{ case.priority }}</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ (case.assignee.full_name or case.assignee.username) if case.assignee else ('User #' ~ case.assignee_id if case.assignee_id else '—') }}</td>
+                        <td>{{ case.date_assigned.strftime('%d/%m/%Y %H:%M') if case.date_assigned else '—' }}</td>
+                        <td>{{ case.letter_count }}</td>
+                        <td>
+                            {% if case.deadline_date %}
+                            <span class="{{ 'text-danger' if case.is_overdue else '' }}">{{ case.deadline_date.strftime('%d/%m/%Y') }}</span>
+                            {% if case.is_paused %}
+                            <span class="lt-badge lt-badge-unassigned ms-1">Paused</span>
+                            {% endif %}
+                            {% else %}
+                            —
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if case.days_remaining is not none %}
+                            <span class="{% if case.days_remaining < 0 %}text-danger fw-bold{% elif case.days_remaining <= 3 %}text-warning{% else %}text-success{% endif %}">
+                                {{ case.days_remaining }}d
+                            </span>
+                            {% else %}
+                            —
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="dropdown">
+                                <button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+                                    <i class="bi bi-three-dots-vertical"></i>
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end">
+                                    <li><a class="dropdown-item" href="{{ url_for('cases.case_detail', case_id=case.id) }}"><i class="bi bi-eye me-2"></i>View</a></li>
+                                    <li><a class="dropdown-item" href="{{ url_for('cases.assign_case', case_id=case.id) }}"><i class="bi bi-person-plus me-2"></i>Assign</a></li>
+                                    {% if case.assignee_id %}
+                                    <li>
+                                        <form method="POST" action="{{ url_for('cases.unassign_case', case_id=case.id) }}" class="d-inline">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                            <button type="submit" class="dropdown-item" onclick="return confirm('Unassign this case?')"><i class="bi bi-person-dash me-2"></i>Unassign</button>
+                                        </form>
+                                    </li>
+                                    {% endif %}
+                                    <li><hr class="dropdown-divider"></li>
+                                    {% if current_user.is_admin %}
+                                    <li>
+                                        <form method="POST" action="{{ url_for('cases.delete_case', case_id=case.id) }}" class="d-inline">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                            <button type="submit" class="dropdown-item text-danger" onclick="return confirm('Delete this case? Letters will be unlinked.')"><i class="bi bi-trash me-2"></i>Delete</button>
+                                        </form>
+                                    </li>
+                                    {% endif %}
+                                </ul>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    $('#casesTable').DataTable({
+        order: [[1, 'desc']],
+        scrollX: true,
+        scrollCollapse: true,
+        autoWidth: false,
+        fixedColumns: {
+            left: 1
+        },
+        columnDefs: [{ orderable: false, targets: [0, 11] }],
+        language: { emptyTable: 'No cases found.{% if current_user.is_admin %} <a href="{{ url_for("cases.create_case") }}">Create a new case</a> to get started.{% endif %}' }
+    });
+});
+
+$('#selectAll').on('change', function() {
+    $('.row-check').prop('checked', this.checked);
+    updateBulkBar();
+});
+$(document).on('change', '.row-check', updateBulkBar);
+
+// UX-8: Show/hide assignee picker based on selected action
+$('#bulkAction').on('change', function() {
+    if ($(this).val() === 'assign') {
+        $('#bulkAssignee').show();
+    } else {
+        $('#bulkAssignee').hide();
+    }
+});
+
+function updateBulkBar() {
+    var count = $('.row-check:checked').length;
+    $('#selectedCount').text(count);
+}
+
+function executeCaseBulk() {
+    var action = $('#bulkAction').val();
+    if (!action) return;
+    var ids = [];
+    $('.row-check:checked').each(function() { ids.push(parseInt($(this).val())); });
+    if (ids.length === 0) { ltToast('No cases selected', 'warning'); return; }
+
+    if (action === 'delete') {
+        ltConfirm('Delete ' + ids.length + ' selected case(s)? Letters will be unlinked.', function() {
+            submitCaseBulk(action, ids);
+        });
+    } else if (action === 'assign') {
+        var assigneeId = parseInt($('#bulkAssignee').val());
+        if (!assigneeId) { ltToast('Please select an assignee', 'warning'); return; }
+        submitCaseBulk(action, ids, assigneeId);
+    }
+}
+
+function submitCaseBulk(action, ids, assigneeId) {
+    var body = { action: action, case_ids: ids };
+    if (assigneeId) body.assignee_id = assigneeId;
+
+    fetch('{{ url_for("api.cases_bulk_action") }}', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.error) { ltToast(data.error, 'danger'); }
+        else {
+            // UX-9: Show feedback toast before reloading
+            ltToast(data.message || 'Action completed successfully', 'success');
+            setTimeout(function() { location.reload(); }, 1000);
+        }
+    })
+    .catch(() => ltToast('Bulk action failed', 'danger'));
+}
+</script>
+{% endblock %}

@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block title %}Workload{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="mb-0 fw-bold">Team Workload</h4>
+    <form method="GET" class="d-flex align-items-center gap-2 flex-wrap">
+        <div class="input-group input-group-sm" style="min-width: 220px;">
+            <input type="text" name="q" class="form-control" value="{{ search_q or '' }}" placeholder="Search name or username">
+            <button class="btn btn-outline-secondary" type="submit"><i class="bi bi-search"></i></button>
+        </div>
+        <label for="sort" class="text-muted small mb-0">Sort by</label>
+        <select id="sort" name="sort" class="form-select form-select-sm" onchange="this.form.submit()">
+            <option value="overdue" {% if sort_by == 'overdue' %}selected{% endif %}>Overdue</option>
+            <option value="in_progress" {% if sort_by == 'in_progress' %}selected{% endif %}>In Progress</option>
+            <option value="total" {% if sort_by == 'total' %}selected{% endif %}>Total Assigned</option>
+            <option value="resolved" {% if sort_by == 'resolved' %}selected{% endif %}>Resolved</option>
+            <option value="cases" {% if sort_by == 'cases' %}selected{% endif %}>Cases</option>
+            <option value="name" {% if sort_by == 'name' %}selected{% endif %}>Name (A-Z)</option>
+        </select>
+        {% if search_q or sort_by != 'overdue' %}
+        <a href="{{ url_for('admin.workload') }}" class="btn btn-outline-danger btn-sm">Clear</a>
+        {% endif %}
+    </form>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-sm-6 col-lg-3">
+        <div class="lt-card p-3 h-100 text-center">
+            <div class="text-muted small">Active Members</div>
+            <div class="fw-bold fs-4">{{ summary.users }}</div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+        <div class="lt-card p-3 h-100 text-center">
+            <div class="text-muted small">Total Assigned</div>
+            <div class="fw-bold fs-4">{{ summary.total }}</div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+        <div class="lt-card p-3 h-100 text-center">
+            <div class="text-muted small">In Progress</div>
+            <div class="fw-bold fs-4 text-warning">{{ summary.in_progress }}</div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+        <div class="lt-card p-3 h-100 text-center">
+            <div class="text-muted small">Overdue</div>
+            <div class="fw-bold fs-4 text-danger">{{ summary.overdue }}</div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+    {% for item in workload_data %}
+    <div class="col-md-6 col-lg-4">
+        <div class="lt-card">
+            <div class="lt-card-header">
+                <div>
+                    <h5 class="mb-0">{{ item.display_name }}</h5>
+                    {% if item.username %}
+                    <small class="text-muted">@{{ item.username }}</small>
+                    {% endif %}
+                </div>
+                <span class="lt-badge lt-badge-user">User</span>
+            </div>
+            <div class="lt-card-body">
+                <div class="row text-center mb-3">
+                    <div class="col-4">
+                        <div class="fw-bold fs-4">{{ item.total }}</div>
+                        <small class="text-muted">Total</small>
+                    </div>
+                    <div class="col-4">
+                        <div class="fw-bold fs-4 text-warning">{{ item.in_progress }}</div>
+                        <small class="text-muted">In Progress</small>
+                    </div>
+                    <div class="col-4">
+                        <div class="fw-bold fs-4 text-danger">{{ item.overdue }}</div>
+                        <small class="text-muted">Overdue</small>
+                    </div>
+                </div>
+                {% if item.total > 0 %}
+                <div class="progress" style="height: 8px;">
+                    {% set resolved_pct = ((item.resolved / item.total) * 100)|round %}
+                    {% set pending_pct = ((item.in_progress / item.total) * 100)|round %}
+                    <div class="progress-bar bg-success" style="width: {{ resolved_pct }}%" title="Resolved"></div>
+                    <div class="progress-bar bg-warning" style="width: {{ pending_pct }}%" title="Pending"></div>
+                </div>
+                <small class="text-muted mt-1 d-block">{{ resolved_pct }}% resolved</small>
+                {% endif %}
+                {% if item.cases %}
+                <div class="mt-2">
+                    <small class="text-muted"><i class="bi bi-folder2 me-1"></i>{{ item.cases }} cases assigned</small>
+                </div>
+                {% endif %}
+                <div class="d-flex gap-2 mt-3">
+                    <a href="{{ url_for('admin.dashboard', assignee=item.user_id) }}" class="btn btn-sm btn-outline-secondary">
+                        <i class="bi bi-envelope me-1"></i>View Letters
+                    </a>
+                    <a href="{{ url_for('cases.dashboard', assignee=item.user_id) }}" class="btn btn-sm btn-outline-secondary">
+                        <i class="bi bi-folder2-open me-1"></i>View Cases
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="col-12">
+        <div class="text-center text-muted py-5">No active users with assignments.</div>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

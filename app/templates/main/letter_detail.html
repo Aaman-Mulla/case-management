@@ -1,0 +1,375 @@
+{% extends "base.html" %}
+{% block title %}Letter Detail{% endblock %}
+
+{% block content %}
+<div class="lt-breadcrumb">
+    {% if current_user.is_admin %}
+    <a href="{{ url_for('admin.dashboard') }}">Dashboard</a>
+    {% elif current_user.is_data_entry %}
+    <a href="{{ url_for('data_entry.dashboard') }}">Dashboard</a>
+    {% else %}
+    <a href="{{ url_for('main.dashboard') }}">Dashboard</a>
+    {% endif %}
+    <span class="separator">/</span>
+    <span>Letter #{{ letter.id }}</span>
+</div>
+
+<!-- Header -->
+<div class="d-flex justify-content-between align-items-start mb-4">
+    <div>
+        <h4 class="fw-bold mb-1">{{ letter.subject }}</h4>
+        <div class="d-flex gap-2 align-items-center">
+            <span class="lt-badge lt-badge-{{ 'outward' if letter.direction == 'Outward' else 'assigned' }}">{{ letter.direction }}</span>
+            {% if letter.priority %}
+            <span class="lt-badge lt-badge-{{ letter.priority|lower }}">{{ letter.priority }}</span>
+            {% endif %}
+            {% if letter.is_overdue %}
+            <span class="lt-badge lt-badge-overdue">Overdue</span>
+            {% else %}
+            <span class="lt-badge lt-badge-{{ letter.status|lower|replace(' ','') }}">{{ letter.status }}</span>
+            {% endif %}
+        </div>
+    </div>
+    <div class="d-flex gap-2">
+        {% if current_user.is_admin or current_user.is_data_entry %}
+        <a href="{{ url_for('admin.edit_letter', id=letter.id) if current_user.is_admin else url_for('data_entry.edit_letter', id=letter.id) }}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-pencil me-1"></i> Edit
+        </a>
+        {% if not letter.assignee_id %}
+        <a href="{{ url_for('admin.assign_letter', id=letter.id) if current_user.is_admin else url_for('data_entry.assign_letter', id=letter.id) }}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-person-plus me-1"></i> Assign
+        </a>
+        {% else %}
+        {% if current_user.is_admin or current_user.is_data_entry %}
+        <form method="POST" action="{{ url_for('admin.unassign_letter', id=letter.id) if current_user.is_admin else url_for('data_entry.unassign_letter', id=letter.id) }}" class="d-inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-outline-secondary btn-sm" onclick="return confirm('Unassign this letter?')">
+                <i class="bi bi-person-dash me-1"></i> Unassign
+            </button>
+        </form>
+        {% endif %}
+        {% endif %}
+        {% endif %}
+        {% if not letter.case_id and not current_user.is_data_entry and (current_user.is_admin or letter.assignee_id == current_user.id) %}
+        <form method="POST" action="{{ url_for('cases.create_from_letter', letter_id=letter.id) }}" class="d-inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-outline-secondary btn-sm"><i class="bi bi-folder-plus me-1"></i> Create Case</button>
+        </form>
+        {% endif %}
+        {% if not letter.case_id and (current_user.is_admin or current_user.is_data_entry or letter.assignee_id == current_user.id) %}
+        <a href="{{ url_for('cases.link_letter', letter_id=letter.id) }}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-link-45deg me-1"></i> Link to Case
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Status Tracker -->
+{% if letter.direction == 'Outward' %}
+{% set ordered_statuses = ['Assigned', 'Outward'] %}
+{% set normalized_status = 'Outward' if letter.status == 'Outward' else 'Assigned' %}
+{% else %}
+{% set ordered_statuses = ['Unassigned', 'Assigned', 'In Progress', 'Resolved'] %}
+{% set normalized_status = letter.status %}
+{% if normalized_status == 'Closed' %}{% set normalized_status = 'Resolved' %}{% endif %}
+{% if normalized_status not in ordered_statuses %}{% set normalized_status = 'Unassigned' %}{% endif %}
+{% endif %}
+{% set current_idx = ordered_statuses.index(normalized_status) if normalized_status in ordered_statuses else 0 %}
+<div class="lt-status-tracker mb-4">
+    {% for st in ordered_statuses %}
+    <div class="lt-status-step">
+        <div class="d-flex flex-column align-items-center">
+            <div class="lt-status-dot {{ 'completed' if loop.index0 < current_idx else ('active' if loop.index0 == current_idx else '') }}">
+                {% if loop.index0 < current_idx %}
+                <i class="bi bi-check"></i>
+                {% else %}
+                {{ loop.index }}
+                {% endif %}
+            </div>
+            <span class="lt-status-label">{{ st }}</span>
+        </div>
+    </div>
+    {% if not loop.last %}
+    <div class="lt-status-line {{ 'completed' if loop.index0 < current_idx else '' }}"></div>
+    {% endif %}
+    {% endfor %}
+</div>
+
+<!-- Info Card -->
+<div class="row g-4 mb-4">
+    <div class="col-lg-8">
+        <div class="lt-card">
+            <div class="lt-card-header">
+                <h5>Letter Details</h5>
+            </div>
+            <div class="lt-card-body">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <small class="text-muted">From</small>
+                        <div>{{ letter.from_address }}</div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <small class="text-muted">To</small>
+                        <div>{{ letter.to_address }}</div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <small class="text-muted">Sender Name</small>
+                        <div>{{ letter.sender_name or '—' }}</div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <small class="text-muted">Section</small>
+                        <div>{{ letter.section or (letter.case.section if letter.case else '—') }}</div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <small class="text-muted">Date Received</small>
+                        <div>{{ letter.import_date.strftime('%d %b %Y') if letter.import_date else '—' }}</div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <small class="text-muted">Date Assigned</small>
+                        <div>{{ letter.assignment_date.strftime('%d %b %Y %H:%M') if letter.assignment_date else '—' }}</div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <small class="text-muted">Deadline</small>
+                        <div class="{{ 'text-danger fw-bold' if letter.is_overdue else '' }}">
+                            {% if letter.deadline_date %}
+                            {{ letter.deadline_date.strftime('%d %b %Y') }}
+                            {% if letter.days_remaining is not none %}
+                            ({{ letter.days_remaining }} day{{ 's' if letter.days_remaining != 1 else '' }} {{ 'remaining' if letter.days_remaining >= 0 else 'overdue' }})
+                            {% endif %}
+                            {% else %}
+                            —
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <small class="text-muted">Assigned To</small>
+                        <div>{{ (letter.assignee.full_name or letter.assignee.username) if letter.assignee else ('User #' ~ letter.assignee_id if letter.assignee_id else 'Unassigned') }}</div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <small class="text-muted">Resolution Date</small>
+                        <div>{{ letter.resolution_date.strftime('%d %b %Y') if letter.resolution_date else '—' }}</div>
+                    </div>
+                </div>
+
+                {% if letter.case %}
+                <div class="alert alert-info py-2 mt-2 mb-0">
+                    <i class="bi bi-link-45deg me-1"></i>Linked to case:
+                    <a href="{{ url_for('cases.case_detail', case_id=letter.case.id) }}">{{ letter.case.reference_number }} — {{ letter.case.title }}</a>
+                    {% if not current_user.is_data_entry and (current_user.is_admin or letter.case.created_by == current_user.id) %}
+                    <form method="POST" action="{{ url_for('cases.unlink_letter', letter_id=letter.id) }}" class="d-inline float-end">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-sm btn-outline-danger" data-lt-confirm="{{ 'This is the last linked letter. Unlinking it will also delete the case. Continue?' if letter.case and letter.case.letter_count == 1 else 'Unlink this letter from the case?' }}">
+                            <i class="bi bi-x-lg me-1"></i>Unlink
+                        </button>
+                    </form>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Status Update & Quick Info -->
+    <div class="col-lg-4">
+        {% if letter.assignee_id == current_user.id or current_user.is_admin or current_user.is_data_entry %}
+        <div class="lt-card mb-4">
+            <div class="lt-card-header">
+                <h5>Update Status</h5>
+            </div>
+            <div class="lt-card-body">
+                <form method="POST" action="{{ url_for('main.update_letter_status', id=letter.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div class="mb-3">
+                        <select name="status" class="form-select">
+                            {% for s in ['Assigned', 'In Progress', 'Resolved'] %}
+                            <option value="{{ s }}" {{ 'selected' if letter.status == s }}>{{ s }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <textarea name="reason" class="form-control" rows="2" placeholder="Reason (optional for backward moves)"></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-lt-accent btn-sm w-100">
+                        <i class="bi bi-arrow-repeat me-1"></i> Update
+                    </button>
+                </form>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Audit Export -->
+        {% if current_user.is_admin %}
+        <div class="lt-card">
+            <div class="lt-card-header"><h5>Audit Export</h5></div>
+            <div class="lt-card-body">
+                <a href="/api/letters/{{ letter.id }}/audit/excel" class="btn btn-outline-secondary btn-sm w-100 mb-2">
+                    <i class="bi bi-file-earmark-spreadsheet me-1"></i> Export Excel
+                </a>
+                <a href="/api/letters/{{ letter.id }}/audit/pdf" class="btn btn-outline-secondary btn-sm w-100">
+                    <i class="bi bi-file-earmark-pdf me-1"></i> Export PDF
+                </a>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Tabs: Comments, Attachments, Activity, Status History -->
+<div class="lt-card">
+    <div class="lt-card-body">
+        <ul class="nav nav-tabs mb-3" role="tablist">
+            <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#commentsTab">Comments ({{ comments|length }})</a></li>
+            <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#attachmentsTab">Attachments ({{ attachments|length }})</a></li>
+            <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#activityTab">Activity ({{ activity_logs|length }})</a></li>
+            <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#historyTab">Status History ({{ status_history|length }})</a></li>
+        </ul>
+
+        <div class="tab-content">
+            <!-- Comments -->
+            <div class="tab-pane fade show active" id="commentsTab">
+                <form method="POST" action="{{ url_for('main.add_letter_comment', id=letter.id) }}" class="mb-4">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div class="mb-2">
+                        <textarea name="content" class="form-control" rows="3" placeholder="Add a comment…" required></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-lt-accent btn-sm"><i class="bi bi-chat me-1"></i> Post Comment</button>
+                </form>
+
+                {% for comment in comments %}
+                <div class="border-bottom pb-3 mb-3">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <strong class="small">{{ comment.author.full_name }}</strong>
+                        <small class="text-muted">{{ comment.created_at.strftime('%d %b %Y %H:%M') }}</small>
+                    </div>
+                    <p class="mb-1" style="font-size: 0.88rem;">{{ comment.content }}</p>
+                    {% if comment.user_id == current_user.id or current_user.is_admin %}
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-sm btn-link p-0 text-muted" onclick="editComment({{ comment.id }}, '{{ comment.content|e }}')">Edit</button>
+                        <form method="POST" action="{{ url_for('main.delete_comment', id=comment.id) }}" class="d-inline">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="btn btn-sm btn-link p-0 text-danger" onclick="return confirm('Delete this comment?')">Delete</button>
+                        </form>
+                    </div>
+                    {% endif %}
+                </div>
+                {% else %}
+                <p class="text-muted">No comments yet.</p>
+                {% endfor %}
+            </div>
+
+            <!-- Attachments -->
+            <div class="tab-pane fade" id="attachmentsTab">
+                <div class="mb-3">
+                    <form id="attachmentForm" enctype="multipart/form-data">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <div class="lt-upload-zone" style="padding: 20px;">
+                            <input type="file" name="file" accept=".pdf,.jpg,.jpeg,.png" class="d-none">
+                            <i class="bi bi-paperclip d-block"></i>
+                            <span class="lt-upload-text">Drop file or click to upload (PDF, JPG, PNG, max 25MB)</span>
+                        </div>
+                    </form>
+                </div>
+
+                {% for att in attachments %}
+                <div class="d-flex justify-content-between align-items-center border-bottom py-2 lt-attachment-item">
+                    <div>
+                        <i class="bi bi-file-earmark me-2"></i>
+                        <a href="/api/attachments/{{ att.id }}/download">{{ att.original_filename }}</a>
+                        <small class="text-muted ms-2">{{ att.uploaded_at.strftime('%d %b %Y') }}</small>
+                    </div>
+                    {% if current_user.is_admin or att.uploaded_by == current_user.id %}
+                    <button class="btn btn-sm btn-outline-danger" data-delete-attachment="{{ att.id }}"><i class="bi bi-trash"></i></button>
+                    {% endif %}
+                </div>
+                {% else %}
+                <p class="text-muted">No attachments.</p>
+                {% endfor %}
+            </div>
+
+            <!-- Activity Log -->
+            <div class="tab-pane fade" id="activityTab">
+                <div class="lt-timeline">
+                    {% for log in activity_logs %}
+                    <div class="lt-timeline-item">
+                        <div class="lt-timeline-text">{{ log.action }}</div>
+                        <div class="lt-timeline-time">
+                            {{ log.user.full_name if log.user else 'System' }} —
+                            {{ log.timestamp.strftime('%d %b %Y %H:%M') }}
+                        </div>
+                    </div>
+                    {% else %}
+                    <p class="text-muted">No activity recorded.</p>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Status History -->
+            <div class="tab-pane fade" id="historyTab">
+                <div class="table-responsive">
+                    <table class="table lt-table">
+                        <thead>
+                            <tr>
+                                <th>From</th>
+                                <th>To</th>
+                                <th>Changed By</th>
+                                <th>Reason</th>
+                                <th>Date</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for sh in status_history %}
+                            <tr>
+                                <td><span class="lt-badge lt-badge-{{ sh.old_status|lower|replace(' ','') if sh.old_status else 'unassigned' }}">{{ sh.old_status or '—' }}</span></td>
+                                <td><span class="lt-badge lt-badge-{{ sh.new_status|lower|replace(' ','') }}">{{ sh.new_status }}</span></td>
+                                <td>{{ sh.changed_by_user.full_name if sh.changed_by_user else 'System' }}</td>
+                                <td>{{ sh.reason or '—' }}</td>
+                                <td>{{ sh.changed_at.strftime('%d %b %Y %H:%M') }}</td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="5" class="text-muted text-center">No status changes recorded.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Attachment upload via AJAX
+document.querySelector('#attachmentForm .lt-upload-zone input[type="file"]')?.addEventListener('change', function() {
+    var form = document.getElementById('attachmentForm');
+    var formData = new FormData();
+    formData.append('file', this.files[0]);
+    formData.append('csrf_token', form.querySelector('[name=csrf_token]').value);
+
+    fetch('/api/letters/{{ letter.id }}/attachments', { method: 'POST', body: formData })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                ltToast('Attachment uploaded', 'success');
+                location.reload();
+            } else {
+                ltToast(data.error || 'Upload failed', 'danger');
+            }
+        })
+        .catch(() => ltToast('Upload error', 'danger'));
+});
+
+function editComment(id, content) {
+    var newContent = prompt('Edit comment:', content);
+    if (newContent && newContent !== content) {
+        var form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '/comment/' + id + '/edit';
+        form.innerHTML = '<input type="hidden" name="csrf_token" value="' + document.querySelector('meta[name=csrf-token]').content + '">' +
+                         '<input type="hidden" name="content" value="' + newContent.replace(/"/g, '&quot;') + '">';
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
+</script>
+{% endblock %}

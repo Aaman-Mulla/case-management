@@ -1,0 +1,258 @@
+{% extends "base.html" %}
+{% block title %}Manage Sections{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="mb-0 fw-bold">Manage Sections</h4>
+    <button class="btn btn-lt-accent btn-sm" data-bs-toggle="modal" data-bs-target="#addSectionModal">
+        <i class="bi bi-plus-lg me-1"></i> Add Section
+    </button>
+</div>
+
+<div class="lt-card">
+    <div class="lt-card-body p-0">
+        <div class="lt-bulk-shell">
+            <div class="d-flex gap-2 align-items-center" id="bulkBar">
+                <span class="text-muted me-2"><strong id="selectedCount">0</strong> selected</span>
+                <select id="bulkAction" class="form-select form-select-sm" style="width: auto;">
+                    <option value="">Bulk Actions…</option>
+                    <option value="activate">Activate Selected</option>
+                    <option value="deactivate">Deactivate Selected</option>
+                    <option value="delete">Delete Selected</option>
+                </select>
+                <button class="btn btn-sm btn-outline-secondary" onclick="executeSectionBulk()">Apply</button>
+            </div>
+        </div>
+        <div class="lt-dt-shell table-responsive">
+            <table class="table table-hover lt-table mb-0" id="sectionsTable">
+                <thead>
+                    <tr>
+                        <th style="width: 40px;"><input type="checkbox" id="selectAll"></th>
+                        <th class="sortable-header" data-sort-column="order">
+                            Order
+                            <span class="sort-indicator-stack {% if sort_by == 'order' %}{{ 'is-asc' if sort_order == 'asc' else 'is-desc' }}{% endif %}" aria-hidden="true">
+                                <span class="sort-caret sort-caret-up"></span>
+                                <span class="sort-caret sort-caret-down"></span>
+                            </span>
+                        </th>
+                        <th class="sortable-header" data-sort-column="code">
+                            Code
+                            <span class="sort-indicator-stack {% if sort_by == 'code' %}{{ 'is-asc' if sort_order == 'asc' else 'is-desc' }}{% endif %}" aria-hidden="true">
+                                <span class="sort-caret sort-caret-up"></span>
+                                <span class="sort-caret sort-caret-down"></span>
+                            </span>
+                        </th>
+                        <th class="sortable-header" data-sort-column="name">
+                            Name
+                            <span class="sort-indicator-stack {% if sort_by == 'name' %}{{ 'is-asc' if sort_order == 'asc' else 'is-desc' }}{% endif %}" aria-hidden="true">
+                                <span class="sort-caret sort-caret-up"></span>
+                                <span class="sort-caret sort-caret-down"></span>
+                            </span>
+                        </th>
+                        <th class="sortable-header" data-sort-column="status">
+                            Status
+                            <span class="sort-indicator-stack {% if sort_by == 'status' %}{{ 'is-asc' if sort_order == 'asc' else 'is-desc' }}{% endif %}" aria-hidden="true">
+                                <span class="sort-caret sort-caret-up"></span>
+                                <span class="sort-caret sort-caret-down"></span>
+                            </span>
+                        </th>
+                        <th style="width: 200px;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="sectionsTbody">
+                    {% for section in sections %}
+                    <tr data-id="{{ section.id }}">
+                        <td><input type="checkbox" class="row-check" value="{{ section.id }}"></td>
+                        <td>
+                            <span class="text-muted"><i class="bi bi-grip-vertical"></i></span>
+                            {{ section.display_order }}
+                        </td>
+                        <td><strong>{{ section.code }}</strong></td>
+                        <td>{{ section.name }}</td>
+                        <td>
+                            {% if section.is_active %}
+                            <span class="lt-badge lt-badge-resolved">Active</span>
+                            {% else %}
+                            <span class="lt-badge lt-badge-unassigned">Inactive</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="d-flex gap-1">
+                                <button class="btn btn-sm btn-outline-secondary" title="Edit"
+                                        onclick="editSection({{ section.id }}, '{{ section.code|e }}', '{{ section.name|e }}', '{{ section.description|default("", true)|e }}')">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                <form method="POST" action="{{ url_for('admin.toggle_section', id=section.id) }}" class="d-inline">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <button type="submit" class="btn btn-sm btn-outline-{{ 'warning' if section.is_active else 'success' }}" title="{{ 'Deactivate' if section.is_active else 'Activate' }}">
+                                        <i class="bi bi-{{ 'pause' if section.is_active else 'play' }}"></i>
+                                    </button>
+                                </form>
+                                <form method="POST" action="{{ url_for('admin.delete_section', id=section.id) }}" class="d-inline" onsubmit="return confirm('Delete this section? Blocked if in use.')">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Add Section Modal -->
+<div class="modal fade" id="addSectionModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" action="{{ url_for('admin.add_section') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="modal-header">
+                    <h5 class="modal-title">Add Section</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Section Code</label>
+                        <input type="text" name="code" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Section Name</label>
+                        <input type="text" name="name" class="form-control" required>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-lt-accent">Add Section</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Section Modal -->
+<div class="modal fade" id="editSectionModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" id="editSectionForm">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="modal-header">
+                    <h5 class="modal-title">Edit Section</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Section Code</label>
+                        <input type="text" name="code" id="editSectionCode" class="form-control" required>
+                        <small class="text-muted">Changing the code will update all linked letters and cases.</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Section Name</label>
+                        <input type="text" name="name" id="editSectionName" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Description <span class="text-muted">(optional)</span></label>
+                        <input type="text" name="description" id="editSectionDesc" class="form-control">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-lt-accent">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$('#selectAll').on('change', function() {
+    $('.row-check').prop('checked', this.checked);
+    updateBulkBar();
+});
+$(document).on('change', '.row-check', updateBulkBar);
+
+function updateBulkBar() {
+    var count = $('.row-check:checked').length;
+    $('#selectedCount').text(count);
+}
+
+function executeSectionBulk() {
+    var action = $('#bulkAction').val();
+    if (!action) return;
+    var ids = [];
+    $('.row-check:checked').each(function() { ids.push($(this).val()); });
+    if (ids.length === 0) { ltToast('No sections selected', 'warning'); return; }
+
+    var msg = action === 'delete' ? 'Delete ' + ids.length + ' selected section(s)? Blocked if in use.' :
+              action.charAt(0).toUpperCase() + action.slice(1) + ' ' + ids.length + ' selected section(s)?';
+    ltConfirm(msg, function() {
+        var form = $('<form method="POST" action="{{ url_for("admin.bulk_section_action") }}">');
+        form.append('<input type="hidden" name="csrf_token" value="' + $('meta[name=csrf-token]').attr('content') + '">');
+        form.append('<input type="hidden" name="action" value="' + action + '">');
+        ids.forEach(function(id) {
+            form.append('<input type="hidden" name="section_ids" value="' + id + '">');
+        });
+        $('body').append(form);
+        form.submit();
+    });
+}
+
+function editSection(id, code, name, description) {
+    document.getElementById('editSectionCode').value = code;
+    document.getElementById('editSectionName').value = name;
+    document.getElementById('editSectionDesc').value = description || '';
+    document.getElementById('editSectionForm').action = '/admin/sections/' + id + '/edit';
+    var modal = new bootstrap.Modal(document.getElementById('editSectionModal'));
+    modal.show();
+}
+
+// Save reorder
+function saveOrder() {
+    var ids = [];
+    document.querySelectorAll('#sectionsTbody tr').forEach(function(row) {
+        ids.push(row.dataset.id);
+    });
+    fetch('{{ url_for("admin.reorder_sections") }}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('meta[name=csrf-token]').content
+        },
+        body: JSON.stringify({ order: ids })
+    })
+    .then(r => r.json())
+    .then(data => { if (data.success) ltToast('Order saved', 'success'); })
+    .catch(() => ltToast('Failed to save order', 'danger'));
+}
+
+// Column sorting
+document.addEventListener('DOMContentLoaded', function() {
+    const sortableHeaders = document.querySelectorAll('.sortable-header');
+    const currentSort = '{{ sort_by }}';
+    const currentOrder = '{{ sort_order }}';
+    
+    sortableHeaders.forEach(function(header) {
+        header.addEventListener('click', function() {
+            const sortColumn = this.getAttribute('data-sort-column');
+            let newOrder = 'asc';
+            
+            // If clicking the same column, toggle order; otherwise default to asc
+            if (sortColumn === currentSort) {
+                newOrder = currentOrder === 'asc' ? 'desc' : 'asc';
+            }
+            
+            // Navigate to the sorted URL
+            const url = new URL(window.location);
+            url.searchParams.set('sort_by', sortColumn);
+            url.searchParams.set('sort_order', newOrder);
+            window.location.href = url.toString();
+        });
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}Add Outward Letter to Case{% endblock %}
+
+{% block content %}
+<div class="lt-breadcrumb">
+    <a href="{{ url_for('cases.case_detail', case_id=case.id) }}">{{ case.reference_number }}</a>
+    <span class="separator">/</span>
+    <span>Add Outward Letter</span>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="lt-card">
+            <div class="lt-card-header">
+                <h5><i class="bi bi-send me-2"></i>Add Outward Letter to Case</h5>
+            </div>
+            <div class="lt-card-body">
+                <div class="alert alert-info py-2 mb-3">
+                    <strong>Case:</strong> {{ case.reference_number }} — {{ case.title }}<br>
+                    <strong>Section:</strong> {{ case.section }}
+                </div>
+
+                <form method="POST" novalidate>
+                    {{ form.hidden_tag() }}
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="from_address" class="form-label">From Address <span class="text-danger">*</span></label>
+                            {{ form.from_address(class="form-control", rows="3") }}
+                            {% for e in form.from_address.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="to_address" class="form-label">To Address <span class="text-danger">*</span></label>
+                            {{ form.to_address(class="form-control", rows="3") }}
+                            {% for e in form.to_address.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="subject" class="form-label">Subject <span class="text-danger">*</span></label>
+                        {{ form.subject(class="form-control") }}
+                        {% for e in form.subject.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="sender_name" class="form-label">Sender Name</label>
+                            {{ form.sender_name(class="form-control") }}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="section" class="form-label">Section</label>
+                            {{ form.section(class="form-control", readonly=true) }}
+                            <div class="form-text">Auto-filled from case.</div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3 form-check">
+                        {{ form.mark_awaiting(class="form-check-input") }}
+                        <label class="form-check-label" for="mark_awaiting">Mark case as "Awaiting Response" and pause deadline</label>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label for="deadline_days" class="form-label">Deadline (days)</label>
+                            {{ form.deadline_days(class="form-control", placeholder="e.g. 7", min="1", max="365") }}
+                            <div class="form-text">Optional. Leave blank to keep this letter without a deadline.</div>
+                            {% for e in form.deadline_days.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+                        </div>
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-lt-accent">
+                            <i class="bi bi-check-lg me-1"></i> Save Outward Letter
+                        </button>
+                        <a href="{{ url_for('cases.case_detail', case_id=case.id) }}" class="btn btn-outline-secondary">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

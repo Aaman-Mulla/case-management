@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}My Cases{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="mb-0 fw-bold">My Cases</h4>
+</div>
+
+{% if cases %}
+<div class="lt-card">
+    <div class="lt-card-body p-0">
+        <div class="lt-dt-shell table-responsive">
+            <table class="table table-hover lt-table mb-0" id="myCasesTable">
+                <thead>
+                    <tr>
+                        <th>Reference</th>
+                        <th>Title</th>
+                        <th>Section</th>
+                        <th>Status</th>
+                        <th>Priority</th>
+                        <th>Deadline</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for case in cases %}
+                    <tr>
+                        <td><a href="{{ url_for('cases.case_detail', case_id=case.id) }}"><strong>{{ case.reference_number }}</strong></a></td>
+                        <td>{{ case.title }}</td>
+                        <td>{{ case.section }}</td>
+                        <td><span class="lt-badge lt-badge-{{ case.status|lower|replace(' ','') }}">{{ case.status }}</span></td>
+                        <td>
+                            {% if case.priority %}
+                            <span class="lt-badge lt-badge-{{ case.priority|lower }}">{{ case.priority }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if case.deadline %}
+                            <span class="{{ 'text-danger' if case.is_overdue else '' }}">{{ case.deadline.strftime('%d %b %Y') }}</span>
+                            {% else %}—{% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="text-center text-muted py-5">
+    <i class="bi bi-folder2 display-4 d-block mb-3"></i>
+    No cases assigned to you.
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    $('#myCasesTable').DataTable({ order: [[5, 'asc']], pageLength: 25 });
+});
+</script>
+{% endblock %}

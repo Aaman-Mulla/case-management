@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% block title %}Manage Users{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="mb-0 fw-bold">Manage Users</h4>
+    <a href="{{ url_for('admin.create_user') }}" class="btn btn-lt-accent btn-sm">
+        <i class="bi bi-person-plus me-1"></i> Create User
+    </a>
+</div>
+
+<div class="lt-card">
+    <div class="lt-card-body p-0">
+        <div class="lt-bulk-shell">
+            <div class="d-flex gap-2 align-items-center" id="bulkBar">
+                <span class="text-muted me-2"><strong id="selectedCount">0</strong> selected</span>
+                <select id="bulkAction" class="form-select form-select-sm" style="width: auto;">
+                    <option value="">Bulk Actions…</option>
+                    <option value="activate">Activate Selected</option>
+                    <option value="deactivate">Deactivate Selected</option>
+                    <option value="delete">Delete Selected</option>
+                </select>
+                <button class="btn btn-sm btn-outline-secondary" onclick="executeUserBulk()">Apply</button>
+            </div>
+        </div>
+        <div class="lt-dt-shell table-responsive">
+            <table class="table table-hover lt-table mb-0" id="usersTable">
+                <thead>
+                    <tr>
+                        <th><input type="checkbox" id="selectAll"></th>
+                        <th>Username</th>
+                        <th>Full Name</th>
+                        <th>Role</th>
+                        <th>Status</th>
+                        <th>Created</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user in users %}
+                    <tr>
+                        <td>
+                            {% if user.id != current_user.id %}
+                            <input type="checkbox" class="row-check" value="{{ user.id }}">
+                            {% endif %}
+                        </td>
+                        <td><strong>{{ user.username }}</strong></td>
+                        <td>{{ user.full_name }}</td>
+                        <td>
+                            {% if user.role == 'admin' %}
+                            <span class="lt-badge lt-badge-roc">ROC</span>
+                            {% elif user.role == 'data_entry' %}
+                            <span class="lt-badge lt-badge-dataentry">Data Entry</span>
+                            {% else %}
+                            <span class="lt-badge lt-badge-user">User</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if user.is_active_user %}
+                            <span class="lt-badge lt-badge-resolved">Active</span>
+                            {% else %}
+                            <span class="lt-badge lt-badge-unassigned">Inactive</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ user.created_at.strftime('%d %b %Y') if user.created_at else '—' }}</td>
+                        <td>
+                            <div class="d-flex gap-1">
+                                <a href="{{ url_for('admin.edit_user', id=user.id) }}" class="btn btn-sm btn-outline-secondary" title="Edit">
+                                    <i class="bi bi-pencil"></i>
+                                </a>
+                                <form method="POST" action="{{ url_for('admin.toggle_user', id=user.id) }}" class="d-inline">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <button type="submit" class="btn btn-sm btn-outline-{{ 'warning' if user.is_active_user else 'success' }}" title="{{ 'Deactivate' if user.is_active_user else 'Activate' }}" onclick="return confirm('{{ 'Deactivate' if user.is_active_user else 'Activate' }} this user?')">
+                                        <i class="bi bi-{{ 'pause' if user.is_active_user else 'play' }}"></i>
+                                    </button>
+                                </form>
+                                {% if user.id != current_user.id %}
+                                <form method="POST" action="{{ url_for('admin.delete_user', id=user.id) }}" class="d-inline">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete" onclick="return confirm('Delete this user and unassign their letters/cases?')">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </form>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    $('#usersTable').DataTable({ order: [[2, 'asc']], pageLength: 25, columnDefs: [{ orderable: false, targets: [0, 6] }] });
+});
+
+$('#selectAll').on('change', function() {
+    $('.row-check').prop('checked', this.checked);
+    updateBulkBar();
+});
+$(document).on('change', '.row-check', updateBulkBar);
+
+function updateBulkBar() {
+    var count = $('.row-check:checked').length;
+    $('#selectedCount').text(count);
+}
+
+function executeUserBulk() {
+    var action = $('#bulkAction').val();
+    if (!action) return;
+    var ids = [];
+    $('.row-check:checked').each(function() { ids.push($(this).val()); });
+    if (ids.length === 0) { ltToast('No users selected', 'warning'); return; }
+
+    var msg = action === 'delete' ? 'Delete ' + ids.length + ' selected user(s)? Their assignments will be removed.' :
+              action.charAt(0).toUpperCase() + action.slice(1) + ' ' + ids.length + ' selected user(s)?';
+    ltConfirm(msg, function() {
+        var form = $('<form method="POST" action="{{ url_for("admin.bulk_user_action") }}">');
+        form.append('<input type="hidden" name="csrf_token" value="' + $('meta[name=csrf-token]').attr('content') + '">');
+        form.append('<input type="hidden" name="action" value="' + action + '">');
+        ids.forEach(function(id) {
+            form.append('<input type="hidden" name="user_ids" value="' + id + '">');
+        });
+        $('body').append(form);
+        form.submit();
+    });
+}
+</script>
+{% endblock %}
