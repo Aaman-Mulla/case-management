@@ -42,6 +42,19 @@ def create_app(config_name='default'):
     migrate.init_app(app, db)
     csrf.init_app(app)
 
+    # Enable SQLite WAL mode for crash resilience and concurrent read performance
+    _uri = app.config.get('SQLALCHEMY_DATABASE_URI', '')
+    if _uri.startswith('sqlite:///'):
+        from sqlalchemy import event as sa_event
+
+        with app.app_context():
+            @sa_event.listens_for(db.engine, 'connect')
+            def _set_sqlite_pragma(dbapi_conn, connection_record):
+                cursor = dbapi_conn.cursor()
+                cursor.execute('PRAGMA journal_mode=WAL')
+                cursor.execute('PRAGMA synchronous=NORMAL')
+                cursor.close()
+
     if limiter:
         limiter.init_app(app)
 
@@ -144,6 +157,7 @@ def create_app(config_name='default'):
     # Create tables and sync sections (optional bootstrap)
     if app.config.get('AUTO_DB_BOOTSTRAP', True):
         with app.app_context():
+            _auto_restore_if_needed(app)
             _backup_broken_sqlite_db(app)
             db.create_all()
             _sync_sections(app)
@@ -222,6 +236,56 @@ def _backup_broken_sqlite_db(app):
             backup_path,
         )
     return backup_path
+
+
+EXTERNAL_BACKUP_DIR = r'E:\Application\Backup'
+
+
+def _auto_restore_if_needed(app):
+    """If the SQLite DB file is missing or corrupt, restore from the latest external backup."""
+    db_path = _get_sqlite_db_path(app)
+    if db_path is None:
+        return  # Not SQLite — nothing to do
+
+    # Check if existing DB is healthy
+    if os.path.exists(db_path) and _sqlite_integrity_ok(db_path) and _sqlite_has_required_tables(db_path):
+        return  # DB is fine
+
+    # Attempt to find the latest backup from the external backup folder
+    backup_dir = EXTERNAL_BACKUP_DIR
+    if not os.path.isdir(backup_dir):
+        app.logger.warning('No external backup directory at %s — cannot auto-restore.', backup_dir)
+        return
+
+    backups = sorted(
+        [f for f in os.listdir(backup_dir) if f.endswith('.db')],
+        reverse=True,
+    )
+    if not backups:
+        app.logger.warning('No .db backups found in %s — cannot auto-restore.', backup_dir)
+        return
+
+    latest = os.path.join(backup_dir, backups[0])
+    if not _sqlite_integrity_ok(latest):
+        app.logger.error('Latest backup %s is itself corrupt — skipping auto-restore.', latest)
+        return
+
+    os.makedirs(os.path.dirname(db_path), exist_ok=True)
+    shutil.copy2(latest, db_path)
+    app.logger.warning('Auto-restored database from backup: %s', latest)
+
+
+def _sqlite_integrity_ok(db_path):
+    """Run a quick integrity check on a SQLite file."""
+    try:
+        conn = sqlite3.connect(db_path)
+        cur = conn.cursor()
+        cur.execute('PRAGMA integrity_check')
+        result = cur.fetchone()
+        conn.close()
+        return result and result[0] == 'ok'
+    except sqlite3.Error:
+        return False
 
 
 def _sync_sections(app):
